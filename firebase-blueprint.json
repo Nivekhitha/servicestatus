@@ -1,0 +1,321 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account profile and portal role metadata.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "role": { "type": "string", "enum": ["admin", "advisor", "technician", "parts_manager", "customer"] },
+        "preferredLanguage": { "type": "string", "enum": ["en", "ta", "hi"] },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "isActive", "createdAt", "updatedAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Dealership staff member profile, skills, availability, and performance stats.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "employeeCode": { "type": "string", "maxLength": 32 },
+        "name": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "role": { "type": "string", "enum": ["admin", "advisor", "technician", "parts_manager"] },
+        "designation": { "type": "string", "maxLength": 100 },
+        "department": { "type": "string", "maxLength": 80 },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "skills": { "type": "array", "description": "Max 12 technical or advisory skills." },
+        "availability": { "type": "string", "enum": ["available", "busy", "off_duty"] },
+        "activeJobCount": { "type": "number" },
+        "completedJobs": { "type": "number" },
+        "averageRating": { "type": "number" },
+        "ratingCount": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeCode", "name", "email", "phone", "role", "designation", "department", "availability", "isActive", "createdAt", "updatedAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Dealership customer profile linked to vehicles, service orders, and service credits.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "preferredLanguage": { "type": "string", "enum": ["en", "ta", "hi"] },
+        "serviceCredits": { "type": "number" },
+        "address": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "phone", "preferredLanguage", "serviceCredits", "createdAt", "updatedAt"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Customer vehicle registered in the dealership service database.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerUserId": { "type": "string", "maxLength": 128 },
+        "make": { "type": "string", "maxLength": 60 },
+        "model": { "type": "string", "maxLength": 80 },
+        "year": { "type": "number" },
+        "registrationNumber": { "type": "string", "maxLength": 32 },
+        "vin": { "type": "string", "maxLength": 32 },
+        "color": { "type": "string", "maxLength": 40 },
+        "mileageKm": { "type": "number" },
+        "healthScore": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerId", "make", "model", "year", "registrationNumber", "createdAt", "updatedAt"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Scheduled customer service bay appointment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerUserId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "vehicleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vehicleLabel": { "type": "string", "maxLength": 160 },
+        "advisorId": { "type": "string", "maxLength": 128 },
+        "scheduledDate": { "type": "string", "maxLength": 40 },
+        "scheduledSlot": { "type": "string", "maxLength": 40 },
+        "serviceType": { "type": "string", "maxLength": 120 },
+        "reportedIssues": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["scheduled", "checked_in", "converted", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerId", "customerName", "vehicleId", "vehicleLabel", "scheduledDate", "scheduledSlot", "serviceType", "status", "createdAt", "updatedAt"]
+    },
+    "ServiceOrder": {
+      "title": "ServiceOrder",
+      "description": "Active or completed automotive repair order shared live between dealership and customer portals.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderNumber": { "type": "string", "maxLength": 32 },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerUserId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerPhone": { "type": "string", "maxLength": 32 },
+        "customerEmail": { "type": "string", "maxLength": 200 },
+        "preferredLanguage": { "type": "string", "enum": ["en", "ta", "hi"] },
+        "vehicleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vehicleLabel": { "type": "string", "maxLength": 160 },
+        "registrationNumber": { "type": "string", "maxLength": 32 },
+        "advisorId": { "type": "string", "maxLength": 128 },
+        "advisorName": { "type": "string", "maxLength": 120 },
+        "technicianId": { "type": "string", "maxLength": 128 },
+        "technicianName": { "type": "string", "maxLength": 120 },
+        "technicianAvatar": { "type": "string", "maxLength": 500 },
+        "priority": { "type": "string", "enum": ["standard", "high", "urgent"] },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "vehicle_received",
+            "inspection",
+            "diagnosis",
+            "repair_in_progress",
+            "waiting_for_approval",
+            "repair_completed",
+            "ready_for_pickup"
+          ]
+        },
+        "stageIndex": { "type": "number" },
+        "reportedIssues": { "type": "string", "maxLength": 1500 },
+        "estimatedCompletion": { "type": "string", "maxLength": 80 },
+        "isDelayed": { "type": "boolean" },
+        "delayReason": { "type": "string", "maxLength": 400 },
+        "baseEstimate": { "type": "number" },
+        "approvedExtrasTotal": { "type": "number" },
+        "totalCost": { "type": "number" },
+        "costBreakdown": { "type": "array", "description": "Max 20 itemized labor and parts rows." },
+        "checklist": { "type": "array", "description": "Max 30 technician inspection/repair tasks." },
+        "technicalNotes": { "type": "array", "description": "Max 30 chronological technical observations." },
+        "customerUpdates": { "type": "array", "description": "Max 30 customer-friendly status updates." },
+        "media": { "type": "array", "description": "Max 20 photo/video evidence attachments." },
+        "inspectionSummary": { "type": "string", "maxLength": 2000 },
+        "maintenanceRecommendations": { "type": "array", "description": "Max 15 AI or technician recommendations." },
+        "customerRating": { "type": "number" },
+        "customerFeedback": { "type": "string", "maxLength": 1000 },
+        "partExchangeOptIn": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "orderNumber",
+        "customerId",
+        "customerName",
+        "vehicleId",
+        "vehicleLabel",
+        "registrationNumber",
+        "priority",
+        "stage",
+        "stageIndex",
+        "reportedIssues",
+        "estimatedCompletion",
+        "isDelayed",
+        "baseEstimate",
+        "approvedExtrasTotal",
+        "totalCost",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ApprovalRequest": {
+      "title": "ApprovalRequest",
+      "description": "Additional repair recommendation awaiting or resolved by customer approval.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "serviceOrderId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderNumber": { "type": "string", "maxLength": 32 },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerUserId": { "type": "string", "maxLength": 128 },
+        "technicianId": { "type": "string", "maxLength": 128 },
+        "technicianName": { "type": "string", "maxLength": 120 },
+        "title": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 1200 },
+        "estimatedCost": { "type": "number" },
+        "mediaUrl": { "type": "string", "maxLength": 500 },
+        "mediaCaption": { "type": "string", "maxLength": 240 },
+        "status": { "type": "string", "enum": ["pending", "approved", "declined"] },
+        "customerResponseNote": { "type": "string", "maxLength": 500 },
+        "respondedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "serviceOrderId",
+        "orderNumber",
+        "customerId",
+        "technicianName",
+        "title",
+        "description",
+        "estimatedCost",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CircularPart": {
+      "title": "CircularPart",
+      "description": "Eligible non-safety-critical removed vehicle component available for inter-dealership reuse.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "partName": { "type": "string", "maxLength": 140 },
+        "category": { "type": "string", "maxLength": 80 },
+        "isSafetyCritical": { "type": "boolean" },
+        "condition": { "type": "string", "enum": ["excellent", "good", "refurbished"] },
+        "compatibleModels": { "type": "string", "maxLength": 240 },
+        "sourceOrderId": { "type": "string", "maxLength": 128 },
+        "sourceCustomerId": { "type": "string", "maxLength": 128 },
+        "dealershipName": { "type": "string", "maxLength": 140 },
+        "inspectionNotes": { "type": "string", "maxLength": 800 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "creditValue": { "type": "number" },
+        "co2SavedKg": { "type": "number" },
+        "status": { "type": "string", "enum": ["available", "requested", "exchanged"] },
+        "requestedByDealership": { "type": "string", "maxLength": 140 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "partName",
+        "category",
+        "isSafetyCritical",
+        "condition",
+        "compatibleModels",
+        "dealershipName",
+        "creditValue",
+        "co2SavedKg",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "Centralized audit record for SMS, WhatsApp, and in-app customer notifications.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "serviceOrderId": { "type": "string", "maxLength": 128 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "customerUserId": { "type": "string", "maxLength": 128 },
+        "recipientName": { "type": "string", "maxLength": 120 },
+        "recipientContact": { "type": "string", "maxLength": 64 },
+        "channel": { "type": "string", "enum": ["sms", "whatsapp", "in_app"] },
+        "templateType": { "type": "string", "maxLength": 64 },
+        "message": { "type": "string", "maxLength": 1200 },
+        "estimatedCompletion": { "type": "string", "maxLength": 80 },
+        "deliveryStatus": { "type": "string", "enum": ["delivered", "not_configured", "failed", "in_app_logged"] },
+        "providerMessage": { "type": "string", "maxLength": 300 },
+        "sentByName": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerId", "recipientName", "channel", "message", "deliveryStatus", "sentByName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profiles with role-based access control."
+    },
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Dealership employees managed by Admin."
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/Customer" },
+      "description": "Registered dealership customers."
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/Vehicle" },
+      "description": "Vehicles linked to customer accounts."
+    },
+    "/appointments/{appointmentId}": {
+      "schema": { "$ref": "#/entities/Appointment" },
+      "description": "Scheduled service bay appointments."
+    },
+    "/serviceOrders/{orderId}": {
+      "schema": { "$ref": "#/entities/ServiceOrder" },
+      "description": "Shared real-time repair orders visible to assigned dealership staff and the owning customer."
+    },
+    "/approvalRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/ApprovalRequest" },
+      "description": "Additional repair approval requests linking technicians and customers."
+    },
+    "/circularParts/{partId}": {
+      "schema": { "$ref": "#/entities/CircularPart" },
+      "description": "Circular parts exchange catalog for non-safety-critical reusable vehicle parts."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationLog" },
+      "description": "Communication history for SMS, WhatsApp, and in-app updates."
+    }
+  }
+}

@@ -1,0 +1,504 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1 / Safety Net: Default deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'nivekhitha2005@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isStaff() {
+      return isAdmin() || (
+        isVerified() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'advisor', 'technician', 'parts_manager']
+      );
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidLanguage(lang) {
+      return lang in ['en', 'ta', 'hi'];
+    }
+
+    // --- Entity Validation Blueprints (Pillar 2) ---
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'isActive', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'phone', 'role', 'preferredLanguage', 'avatarUrl', 'isActive', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        isValidString(data.email, 3, 200) &&
+        isValidString(data.displayName, 1, 120) &&
+        isOptionalString(data, 'phone', 32) &&
+        data.role in ['admin', 'advisor', 'technician', 'parts_manager', 'customer'] &&
+        (!('preferredLanguage' in data) || isValidLanguage(data.preferredLanguage)) &&
+        isOptionalString(data, 'avatarUrl', 500) &&
+        data.isActive is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['id', 'employeeCode', 'name', 'email', 'phone', 'role', 'designation', 'department', 'availability', 'isActive', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'userId', 'employeeCode', 'name', 'email', 'phone', 'role', 'designation', 'department', 'avatarUrl', 'skills', 'availability', 'activeJobCount', 'completedJobs', 'averageRating', 'ratingCount', 'isActive', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isOptionalString(data, 'userId', 128) &&
+        isValidString(data.employeeCode, 2, 32) &&
+        isValidString(data.name, 1, 120) &&
+        isValidString(data.email, 3, 200) &&
+        isValidString(data.phone, 5, 32) &&
+        data.role in ['admin', 'advisor', 'technician', 'parts_manager'] &&
+        isValidString(data.designation, 1, 100) &&
+        isValidString(data.department, 1, 80) &&
+        isOptionalString(data, 'avatarUrl', 500) &&
+        (!('skills' in data) || (data.skills is list && data.skills.size() <= 12 && (data.skills.size() == 0 || data.skills[0] is string))) &&
+        data.availability in ['available', 'busy', 'off_duty'] &&
+        (!('activeJobCount' in data) || (data.activeJobCount is number && data.activeJobCount >= 0 && data.activeJobCount <= 100)) &&
+        (!('completedJobs' in data) || (data.completedJobs is number && data.completedJobs >= 0 && data.completedJobs <= 100000)) &&
+        (!('averageRating' in data) || (data.averageRating is number && data.averageRating >= 0 && data.averageRating <= 5)) &&
+        (!('ratingCount' in data) || (data.ratingCount is number && data.ratingCount >= 0 && data.ratingCount <= 100000)) &&
+        data.isActive is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'phone', 'preferredLanguage', 'serviceCredits', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'userId', 'name', 'email', 'phone', 'preferredLanguage', 'serviceCredits', 'address', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isOptionalString(data, 'userId', 128) &&
+        isValidString(data.name, 1, 120) &&
+        isValidString(data.email, 3, 200) &&
+        isValidString(data.phone, 5, 32) &&
+        isValidLanguage(data.preferredLanguage) &&
+        data.serviceCredits is number && data.serviceCredits >= 0 && data.serviceCredits <= 1000000 &&
+        isOptionalString(data, 'address', 300) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasAll(['id', 'customerId', 'make', 'model', 'year', 'registrationNumber', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'customerId', 'customerUserId', 'make', 'model', 'year', 'registrationNumber', 'vin', 'color', 'mileageKm', 'healthScore', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.customerId) &&
+        isOptionalString(data, 'customerUserId', 128) &&
+        isValidString(data.make, 1, 60) &&
+        isValidString(data.model, 1, 80) &&
+        data.year is number && data.year >= 1950 && data.year <= 2035 &&
+        isValidString(data.registrationNumber, 3, 32) &&
+        isOptionalString(data, 'vin', 32) &&
+        isOptionalString(data, 'color', 40) &&
+        (!('mileageKm' in data) || (data.mileageKm is number && data.mileageKm >= 0 && data.mileageKm <= 2000000)) &&
+        (!('healthScore' in data) || (data.healthScore is number && data.healthScore >= 0 && data.healthScore <= 100)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['id', 'customerId', 'customerName', 'vehicleId', 'vehicleLabel', 'scheduledDate', 'scheduledSlot', 'serviceType', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'customerId', 'customerUserId', 'customerName', 'vehicleId', 'vehicleLabel', 'advisorId', 'scheduledDate', 'scheduledSlot', 'serviceType', 'reportedIssues', 'status', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.customerId) &&
+        isOptionalString(data, 'customerUserId', 128) &&
+        isValidString(data.customerName, 1, 120) &&
+        isValidId(data.vehicleId) &&
+        isValidString(data.vehicleLabel, 1, 160) &&
+        isOptionalString(data, 'advisorId', 128) &&
+        isValidString(data.scheduledDate, 4, 40) &&
+        isValidString(data.scheduledSlot, 2, 40) &&
+        isValidString(data.serviceType, 2, 120) &&
+        isOptionalString(data, 'reportedIssues', 1000) &&
+        data.status in ['scheduled', 'checked_in', 'converted', 'cancelled'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidServiceOrder(data) {
+      return data.keys().hasAll(['id', 'orderNumber', 'customerId', 'customerName', 'vehicleId', 'vehicleLabel', 'registrationNumber', 'priority', 'stage', 'stageIndex', 'reportedIssues', 'estimatedCompletion', 'isDelayed', 'baseEstimate', 'approvedExtrasTotal', 'totalCost', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'orderNumber', 'customerId', 'customerUserId', 'customerName', 'customerPhone', 'customerEmail', 'preferredLanguage', 'vehicleId', 'vehicleLabel', 'registrationNumber', 'advisorId', 'advisorName', 'technicianId', 'technicianName', 'technicianAvatar', 'priority', 'stage', 'stageIndex', 'reportedIssues', 'estimatedCompletion', 'isDelayed', 'delayReason', 'baseEstimate', 'approvedExtrasTotal', 'totalCost', 'costBreakdown', 'checklist', 'technicalNotes', 'customerUpdates', 'media', 'inspectionSummary', 'maintenanceRecommendations', 'customerRating', 'customerFeedback', 'partExchangeOptIn', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidString(data.orderNumber, 3, 32) &&
+        isValidId(data.customerId) &&
+        isOptionalString(data, 'customerUserId', 128) &&
+        isValidString(data.customerName, 1, 120) &&
+        isOptionalString(data, 'customerPhone', 32) &&
+        isOptionalString(data, 'customerEmail', 200) &&
+        (!('preferredLanguage' in data) || isValidLanguage(data.preferredLanguage)) &&
+        isValidId(data.vehicleId) &&
+        isValidString(data.vehicleLabel, 1, 160) &&
+        isValidString(data.registrationNumber, 3, 32) &&
+        isOptionalString(data, 'advisorId', 128) &&
+        isOptionalString(data, 'advisorName', 120) &&
+        isOptionalString(data, 'technicianId', 128) &&
+        isOptionalString(data, 'technicianName', 120) &&
+        isOptionalString(data, 'technicianAvatar', 500) &&
+        data.priority in ['standard', 'high', 'urgent'] &&
+        data.stage in ['vehicle_received', 'inspection', 'diagnosis', 'repair_in_progress', 'waiting_for_approval', 'repair_completed', 'ready_for_pickup'] &&
+        data.stageIndex is number && data.stageIndex >= 0 && data.stageIndex <= 6 &&
+        isValidString(data.reportedIssues, 1, 1500) &&
+        isValidString(data.estimatedCompletion, 1, 80) &&
+        data.isDelayed is bool &&
+        isOptionalString(data, 'delayReason', 400) &&
+        data.baseEstimate is number && data.baseEstimate >= 0 && data.baseEstimate <= 1000000 &&
+        data.approvedExtrasTotal is number && data.approvedExtrasTotal >= 0 && data.approvedExtrasTotal <= 1000000 &&
+        data.totalCost is number && data.totalCost >= 0 && data.totalCost <= 2000000 &&
+        (!('costBreakdown' in data) || (data.costBreakdown is list && data.costBreakdown.size() <= 20 && (data.costBreakdown.size() == 0 || data.costBreakdown[0] is map))) &&
+        (!('checklist' in data) || (data.checklist is list && data.checklist.size() <= 30 && (data.checklist.size() == 0 || data.checklist[0] is map))) &&
+        (!('technicalNotes' in data) || (data.technicalNotes is list && data.technicalNotes.size() <= 30 && (data.technicalNotes.size() == 0 || data.technicalNotes[0] is map))) &&
+        (!('customerUpdates' in data) || (data.customerUpdates is list && data.customerUpdates.size() <= 30 && (data.customerUpdates.size() == 0 || data.customerUpdates[0] is map))) &&
+        (!('media' in data) || (data.media is list && data.media.size() <= 20 && (data.media.size() == 0 || data.media[0] is map))) &&
+        isOptionalString(data, 'inspectionSummary', 2000) &&
+        (!('maintenanceRecommendations' in data) || (data.maintenanceRecommendations is list && data.maintenanceRecommendations.size() <= 15 && (data.maintenanceRecommendations.size() == 0 || data.maintenanceRecommendations[0] is string))) &&
+        (!('customerRating' in data) || (data.customerRating is number && data.customerRating >= 1 && data.customerRating <= 5)) &&
+        isOptionalString(data, 'customerFeedback', 1000) &&
+        (!('partExchangeOptIn' in data) || data.partExchangeOptIn is bool) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidApprovalRequest(data) {
+      return data.keys().hasAll(['id', 'serviceOrderId', 'orderNumber', 'customerId', 'technicianName', 'title', 'description', 'estimatedCost', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'serviceOrderId', 'orderNumber', 'customerId', 'customerUserId', 'technicianId', 'technicianName', 'title', 'description', 'estimatedCost', 'mediaUrl', 'mediaCaption', 'status', 'customerResponseNote', 'respondedAt', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.serviceOrderId) &&
+        isValidString(data.orderNumber, 3, 32) &&
+        isValidId(data.customerId) &&
+        isOptionalString(data, 'customerUserId', 128) &&
+        isOptionalString(data, 'technicianId', 128) &&
+        isValidString(data.technicianName, 1, 120) &&
+        isValidString(data.title, 2, 160) &&
+        isValidString(data.description, 2, 1200) &&
+        data.estimatedCost is number && data.estimatedCost >= 0 && data.estimatedCost <= 500000 &&
+        isOptionalString(data, 'mediaUrl', 500) &&
+        isOptionalString(data, 'mediaCaption', 240) &&
+        data.status in ['pending', 'approved', 'declined'] &&
+        isOptionalString(data, 'customerResponseNote', 500) &&
+        (!('respondedAt' in data) || data.respondedAt is timestamp) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCircularPart(data) {
+      return data.keys().hasAll(['id', 'partName', 'category', 'isSafetyCritical', 'condition', 'compatibleModels', 'dealershipName', 'creditValue', 'co2SavedKg', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'partName', 'category', 'isSafetyCritical', 'condition', 'compatibleModels', 'sourceOrderId', 'sourceCustomerId', 'dealershipName', 'inspectionNotes', 'imageUrl', 'creditValue', 'co2SavedKg', 'status', 'requestedByDealership', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidString(data.partName, 2, 140) &&
+        isValidString(data.category, 2, 80) &&
+        data.isSafetyCritical == false &&
+        data.condition in ['excellent', 'good', 'refurbished'] &&
+        isValidString(data.compatibleModels, 2, 240) &&
+        isOptionalString(data, 'sourceOrderId', 128) &&
+        isOptionalString(data, 'sourceCustomerId', 128) &&
+        isValidString(data.dealershipName, 2, 140) &&
+        isOptionalString(data, 'inspectionNotes', 800) &&
+        isOptionalString(data, 'imageUrl', 500) &&
+        data.creditValue is number && data.creditValue >= 0 && data.creditValue <= 50000 &&
+        data.co2SavedKg is number && data.co2SavedKg >= 0 && data.co2SavedKg <= 5000 &&
+        data.status in ['available', 'requested', 'exchanged'] &&
+        isOptionalString(data, 'requestedByDealership', 140) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidNotificationLog(data) {
+      return data.keys().hasAll(['id', 'customerId', 'recipientName', 'channel', 'message', 'deliveryStatus', 'sentByName', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'serviceOrderId', 'customerId', 'customerUserId', 'recipientName', 'recipientContact', 'channel', 'templateType', 'message', 'estimatedCompletion', 'deliveryStatus', 'providerMessage', 'sentByName', 'createdAt']) &&
+        isValidId(data.id) &&
+        isOptionalString(data, 'serviceOrderId', 128) &&
+        isValidId(data.customerId) &&
+        isOptionalString(data, 'customerUserId', 128) &&
+        isValidString(data.recipientName, 1, 120) &&
+        isOptionalString(data, 'recipientContact', 64) &&
+        data.channel in ['sms', 'whatsapp', 'in_app'] &&
+        isOptionalString(data, 'templateType', 64) &&
+        isValidString(data.message, 1, 1200) &&
+        isOptionalString(data, 'estimatedCompletion', 80) &&
+        data.deliveryStatus in ['delivered', 'not_configured', 'failed', 'in_app_logged'] &&
+        isOptionalString(data, 'providerMessage', 300) &&
+        isValidString(data.sentByName, 1, 120) &&
+        data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /admins/{adminUid} {
+      allow get: if isVerified() && isValidId(adminUid) && (request.auth.uid == adminUid || isBootstrappedAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create, update, delete: if isBootstrappedAdmin() && isValidId(adminUid);
+    }
+
+    match /users/{userId} {
+      allow get: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isStaff());
+      allow list: if isBootstrappedAdmin() || (isVerified() && resource.data.uid == request.auth.uid);
+      allow create: if isVerified() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (request.auth.uid == userId && incoming().uid == request.auth.uid && incoming().role == 'customer' && incoming().isActive == true)
+        );
+      allow update: if isVerified() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'preferredLanguage', 'avatarUrl', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /employees/{employeeId} {
+      allow get: if isVerified() && isValidId(employeeId) && isStaff();
+      allow list: if isBootstrappedAdmin() || (isVerified() && resource.data.userId == request.auth.uid);
+      allow create: if isVerified() &&
+        isValidId(employeeId) &&
+        isValidEmployee(incoming()) &&
+        incoming().id == employeeId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow update: if isVerified() &&
+        isValidId(employeeId) &&
+        isValidEmployee(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['availability', 'phone', 'avatarUrl', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(employeeId);
+    }
+
+    match /customers/{customerId} {
+      allow get: if isVerified() && isValidId(customerId) && (existing().userId == request.auth.uid || isStaff());
+      allow list: if isBootstrappedAdmin() || (isVerified() && resource.data.userId == request.auth.uid);
+      allow create: if isVerified() &&
+        isValidId(customerId) &&
+        isValidCustomer(incoming()) &&
+        incoming().id == customerId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          isStaff() ||
+          (incoming().userId == request.auth.uid && incoming().serviceCredits == 0)
+        );
+      allow update: if isVerified() &&
+        isValidId(customerId) &&
+        isValidCustomer(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isStaff() ||
+          (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'preferredLanguage', 'address', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(customerId);
+    }
+
+    match /vehicles/{vehicleId} {
+      allow get: if isVerified() && isValidId(vehicleId) && (existing().customerUserId == request.auth.uid || isStaff());
+      allow list: if isBootstrappedAdmin() || (isVerified() && resource.data.customerUserId == request.auth.uid);
+      allow create: if isVerified() &&
+        isValidId(vehicleId) &&
+        isValidVehicle(incoming()) &&
+        incoming().id == vehicleId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/customers/$(incoming().customerId)) && (
+          isStaff() ||
+          incoming().customerUserId == request.auth.uid
+        );
+      allow update: if isVerified() &&
+        isValidId(vehicleId) &&
+        isValidVehicle(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().customerId == existing().customerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isStaff() ||
+          (existing().customerUserId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['mileageKm', 'color', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(vehicleId);
+    }
+
+    match /appointments/{appointmentId} {
+      allow get: if isVerified() && isValidId(appointmentId) && (existing().customerUserId == request.auth.uid || isStaff());
+      allow list: if isBootstrappedAdmin() || (isVerified() && resource.data.customerUserId == request.auth.uid);
+      allow create: if isVerified() &&
+        isValidId(appointmentId) &&
+        isValidAppointment(incoming()) &&
+        incoming().id == appointmentId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/customers/$(incoming().customerId)) &&
+        exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId)) && (
+          isStaff() ||
+          (incoming().customerUserId == request.auth.uid && incoming().status == 'scheduled')
+        );
+      allow update: if isVerified() &&
+        isValidId(appointmentId) &&
+        isValidAppointment(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().customerId == existing().customerId &&
+        incoming().vehicleId == existing().vehicleId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (existing().status != 'cancelled' && existing().status != 'converted' && (
+            (isStaff() && incoming().diff(existing()).affectedKeys().hasOnly(['scheduledDate', 'scheduledSlot', 'serviceType', 'reportedIssues', 'advisorId', 'status', 'updatedAt'])) ||
+            (existing().customerUserId == request.auth.uid && incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+          ))
+        );
+      allow delete: if isAdmin() && isValidId(appointmentId);
+    }
+
+    match /serviceOrders/{orderId} {
+      allow get: if isVerified() && isValidId(orderId) && (existing().customerUserId == request.auth.uid || isStaff());
+      allow list: if isBootstrappedAdmin() || (isVerified() && (resource.data.customerUserId == request.auth.uid || resource.data.technicianId == request.auth.uid || resource.data.advisorId == request.auth.uid));
+      allow create: if isVerified() &&
+        isValidId(orderId) &&
+        isValidServiceOrder(incoming()) &&
+        incoming().id == orderId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/customers/$(incoming().customerId)) &&
+        exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId)) &&
+        isStaff();
+      allow update: if isVerified() &&
+        isValidId(orderId) &&
+        isValidServiceOrder(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().customerId == existing().customerId &&
+        incoming().vehicleId == existing().vehicleId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          // Action: Staff repair lifecycle progression
+          (isStaff() && incoming().diff(existing()).affectedKeys().hasOnly(['technicianId', 'technicianName', 'technicianAvatar', 'priority', 'stage', 'stageIndex', 'estimatedCompletion', 'isDelayed', 'delayReason', 'baseEstimate', 'approvedExtrasTotal', 'totalCost', 'costBreakdown', 'checklist', 'technicalNotes', 'customerUpdates', 'media', 'inspectionSummary', 'maintenanceRecommendations', 'updatedAt'])) ||
+          // Action: Customer rating & feedback on completed/ready order
+          (existing().customerUserId == request.auth.uid &&
+            existing().stage in ['repair_completed', 'ready_for_pickup'] &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['customerRating', 'customerFeedback', 'updatedAt'])) ||
+          // Action: Customer voluntary circular part-exchange opt-in
+          (existing().customerUserId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['partExchangeOptIn', 'updatedAt'])) ||
+          // Action: Customer approval decision cost & stage sync (strictly monotonic cost)
+          (existing().customerUserId == request.auth.uid &&
+            existing().stage == 'waiting_for_approval' &&
+            incoming().stage == 'repair_in_progress' &&
+            incoming().stageIndex == 3 &&
+            incoming().approvedExtrasTotal >= existing().approvedExtrasTotal &&
+            incoming().totalCost == existing().baseEstimate + incoming().approvedExtrasTotal &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['approvedExtrasTotal', 'totalCost', 'costBreakdown', 'stage', 'stageIndex', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    match /approvalRequests/{requestId} {
+      allow get: if isVerified() && isValidId(requestId) && (existing().customerUserId == request.auth.uid || isStaff());
+      allow list: if isBootstrappedAdmin() || (isVerified() && (resource.data.customerUserId == request.auth.uid || resource.data.technicianId == request.auth.uid));
+      allow create: if isVerified() &&
+        isValidId(requestId) &&
+        isValidApprovalRequest(incoming()) &&
+        incoming().id == requestId &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/serviceOrders/$(incoming().serviceOrderId)) &&
+        isStaff();
+      allow update: if isVerified() &&
+        isValidId(requestId) &&
+        isValidApprovalRequest(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().serviceOrderId == existing().serviceOrderId &&
+        incoming().customerId == existing().customerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (existing().status == 'pending' &&
+            existing().customerUserId == request.auth.uid &&
+            incoming().status in ['approved', 'declined'] &&
+            incoming().respondedAt == request.time &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'customerResponseNote', 'respondedAt', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(requestId);
+    }
+
+    match /circularParts/{partId} {
+      allow get: if isVerified() && isValidId(partId) && (isStaff() || existing().sourceCustomerId == request.auth.uid);
+      allow list: if isBootstrappedAdmin() || (isVerified() && (resource.data.status == 'available' || resource.data.sourceCustomerId == request.auth.uid));
+      allow create: if isVerified() &&
+        isValidId(partId) &&
+        isValidCircularPart(incoming()) &&
+        incoming().id == partId &&
+        incoming().isSafetyCritical == false &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isStaff();
+      allow update: if isVerified() &&
+        isValidId(partId) &&
+        isValidCircularPart(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().isSafetyCritical == false &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (existing().status != 'exchanged' && isStaff() && incoming().diff(existing()).affectedKeys().hasOnly(['condition', 'compatibleModels', 'inspectionNotes', 'imageUrl', 'creditValue', 'co2SavedKg', 'status', 'requestedByDealership', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(partId);
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isVerified() && isValidId(notificationId) && (existing().customerUserId == request.auth.uid || isStaff());
+      allow list: if isBootstrappedAdmin() || (isVerified() && resource.data.customerUserId == request.auth.uid);
+      allow create: if isVerified() &&
+        isValidId(notificationId) &&
+        isValidNotificationLog(incoming()) &&
+        incoming().id == notificationId &&
+        incoming().createdAt == request.time &&
+        isStaff();
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(notificationId);
+    }
+  }
+}
