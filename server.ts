@@ -7,7 +7,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 8080;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 const GEMINI_MODEL = 'gemini-4-hydrogen';
@@ -411,7 +411,11 @@ async function createApp() {
   if (IS_PRODUCTION) {
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.get('*', (req, res, next) => {
+      if (req.path === '/api' || req.path.startsWith('/api/')) {
+        next();
+        return;
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
